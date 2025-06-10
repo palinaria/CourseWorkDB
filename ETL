@@ -1,0 +1,274 @@
+---2.2
+
+ALTER USER postgres WITH PASSWORD '12345';
+
+CREATE EXTENSION IF NOT EXISTS postgres_fdw;
+
+
+CREATE SERVER postgres_server
+FOREIGN DATA WRAPPER postgres_fdw
+OPTIONS (host 'localhost', dbname 'perfume_shop', port '5432');
+
+
+CREATE USER MAPPING FOR CURRENT_USER
+SERVER postgres_server
+OPTIONS (user 'postgres', password '12345');
+
+
+--CREATING FOREIGN TABLES
+
+
+--USERS
+
+CREATE FOREIGN TABLE foreign_users (
+    user_id INT,
+    username VARCHAR(50),
+    email VARCHAR(100),
+    password VARCHAR(255)
+) SERVER postgres_server
+OPTIONS (schema_name 'public', table_name 'users');
+
+
+
+--BRANDS
+
+CREATE FOREIGN TABLE foreign_brands (
+    brand_id INT,
+    brand_name VARCHAR(100)
+) SERVER postgres_server OPTIONS (schema_name 'public', table_name 'brands');
+
+
+
+
+
+--CATEGORIES
+
+
+CREATE FOREIGN TABLE foreign_categories (
+    category_id INT,
+    category_name VARCHAR(100)
+) SERVER postgres_server OPTIONS (schema_name 'public', table_name 'categories');
+
+
+
+
+
+--PRODUCTS
+
+CREATE FOREIGN TABLE foreign_products (
+    product_id INT,
+    product_name VARCHAR(100),
+    description TEXT,
+    price DECIMAL(10,2),
+    availability BOOLEAN,
+    brand_id INT,
+    category_id INT
+) SERVER postgres_server OPTIONS (schema_name 'public', table_name 'products');
+
+
+
+--CART
+CREATE FOREIGN TABLE foreign_cart (
+    cart_id     INT,
+    user_id     INT,
+    total_amount NUMERIC(10,2)
+)SERVER postgres_server OPTIONS (schema_name 'public',table_name 'cart');
+
+--CART_ITEMS
+
+CREATE FOREIGN TABLE foreign_cartitems (
+    cart_item_id INT,
+    cart_id INT,
+    product_id INT,
+    quantity INT
+) SERVER postgres_server OPTIONS (schema_name 'public', table_name 'cartitems');
+
+
+
+
+--ORDERS
+
+CREATE FOREIGN TABLE foreign_orders (
+    order_id INT,
+    user_id INT,
+    order_date TIMESTAMP,
+    total_amount NUMERIC(10,2),
+    status VARCHAR(30),
+    delivery_method VARCHAR(50),
+    payment_method VARCHAR(50),
+    delivery_address TEXT
+) SERVER postgres_server OPTIONS (schema_name 'public', table_name 'orders');
+
+
+
+--ORDER_ITEMS
+
+CREATE FOREIGN TABLE foreign_orderitems (
+    order_item_id INT,
+    order_id INT,
+    product_id INT,
+    quantity INT
+) SERVER postgres_server OPTIONS (schema_name 'public', table_name 'orderitems');
+
+
+
+
+--FOREIGN_TAGS
+CREATE FOREIGN TABLE foreign_tags (
+    tag_id INT,
+    tag_name VARCHAR(100)
+) SERVER postgres_server OPTIONS (schema_name 'public', table_name 'tags');
+
+;
+
+
+--BridgeProductTag
+CREATE FOREIGN TABLE foreign_product_tags (
+    product_id INT,
+    tag_id INT
+) SERVER postgres_server OPTIONS (schema_name 'public', table_name 'bridge_product_tag');
+
+
+
+--ETL SCRIP
+
+--DimUser
+
+INSERT INTO DimUser (user_id, username, email, password)
+SELECT DISTINCT user_id, username, email, password
+FROM foreign_users
+ON CONFLICT (user_id) DO UPDATE
+  SET username = EXCLUDED.username,
+      email = EXCLUDED.email,
+      password = EXCLUDED.password;
+
+
+--DimDate
+
+INSERT INTO DimDate (full_date, day, month, year)
+SELECT DISTINCT
+    CAST(order_date AS DATE),
+    EXTRACT(DAY FROM order_date),
+    EXTRACT(MONTH FROM order_date),
+    EXTRACT(YEAR FROM order_date)
+FROM foreign_orders
+WHERE order_date IS NOT NULL
+ON CONFLICT (full_date) DO NOTHING;
+
+
+
+--FactOrders
+
+INSERT INTO FactOrders (
+    order_id,
+    user_id,
+    product_id,
+    date_id,
+    quantity,
+    total_cost,
+    product_count
+)
+SELECT
+    o.order_id,
+    o.user_id,
+    oi.product_id,
+    dd.date_id,
+    oi.quantity,
+    o.total_amount,
+    (SELECT COUNT(*)
+     FROM foreign_orderitems oi2
+     WHERE oi2.order_id = o.order_id)
+FROM foreign_orders o
+JOIN foreign_orderitems oi ON oi.order_id = o.order_id
+JOIN DimDate dd ON dd.full_date = CAST(o.order_date AS DATE)
+ON CONFLICT DO NOTHING;
+
+
+--FactCartItems(TYPE2)
+INSERT INTO FactCartItems (cart_id, user_id, product_id, date_id, quantity, total_cost, total_cart_cost)
+SELECT
+    ci.cart_id,
+    c.user_id,
+    ci.product_id,
+    dd.date_id,
+    ci.quantity,
+    (ci.quantity * dp.price) AS total_cost,
+    cart_sums.total_cart_cost
+FROM foreign_cart c
+JOIN foreign_cartitems ci ON ci.cart_id = c.cart_id
+JOIN DimDate dd ON dd.full_date = CURRENT_DATE
+JOIN DimProduct dp ON dp.product_id = ci.product_id AND dp.is_current = TRUE
+JOIN (
+    SELECT
+        ci2.cart_id,
+        SUM(ci2.quantity * dp2.price) AS total_cart_cost
+    FROM foreign_cartitems ci2
+    JOIN DimProduct dp2 ON dp2.product_id = ci2.product_id AND dp2.is_current = TRUE
+    GROUP BY ci2.cart_id
+) cart_sums ON cart_sums.cart_id = ci.cart_id;
+
+--Ending of previous version(type 2)
+
+UPDATE DimProduct dp
+SET valid_to = CURRENT_DATE - INTERVAL '1 day',
+    is_current = FALSE
+FROM foreign_products p
+LEFT JOIN foreign_brands b ON p.brand_id = b.brand_id
+LEFT JOIN foreign_categories c ON p.category_id = c.category_id
+WHERE dp.product_id = p.product_id
+  AND dp.is_current = TRUE
+  AND (
+      dp.title IS DISTINCT FROM p.product_name OR
+      dp.description IS DISTINCT FROM p.description OR
+      dp.price IS DISTINCT FROM p.price OR
+      dp.brand IS DISTINCT FROM b.brand_name OR
+      dp.category IS DISTINCT FROM c.category_name
+  );
+
+--Inserting new versions(type 2)
+INSERT INTO DimProduct (
+    product_id, title, description, price, brand, category,
+    valid_from, valid_to, is_current
+)
+SELECT
+    p.product_id,
+    p.product_name,
+    p.description,
+    p.price,
+    b.brand_name,
+    c.category_name,
+    CURRENT_DATE,
+    NULL,
+    TRUE
+FROM foreign_products p
+LEFT JOIN foreign_brands b ON p.brand_id = b.brand_id
+LEFT JOIN foreign_categories c ON p.category_id = c.category_id
+LEFT JOIN DimProduct dp ON dp.product_id = p.product_id AND dp.is_current = TRUE
+WHERE
+    dp.product_id IS NULL OR
+    dp.title IS DISTINCT FROM p.product_name OR
+    dp.description IS DISTINCT FROM p.description OR
+    dp.price IS DISTINCT FROM p.price OR
+    dp.brand IS DISTINCT FROM b.brand_name OR
+    dp.category IS DISTINCT FROM c.category_name;
+
+
+
+--DimTag
+
+INSERT INTO DimTag (tag_id, tag_name)
+SELECT DISTINCT tag_id, tag_name
+FROM foreign_tags
+ON CONFLICT (tag_id) DO UPDATE
+  SET tag_name = EXCLUDED.tag_name;
+
+
+--DimBridgeProductTag
+INSERT INTO DimBridgeProductTag (product_id, tag_id)
+SELECT DISTINCT product_id, tag_id
+FROM foreign_product_tags
+ON CONFLICT DO NOTHING;
+
+
+
+

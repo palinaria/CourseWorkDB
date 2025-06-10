@@ -1,0 +1,245 @@
+--Load data from CSV files into temporary tables MANUALLY
+
+INSERT INTO temp_users (user_id, username, email, password) VALUES
+('1','alice', 'alice@example.com', 'alicepass123'),
+('2','bob', 'bob@example.com', 'bobpass456'),
+('3','carol', 'carol@example.com', 'carolpass789');
+
+
+INSERT INTO temp_brands (brand_id, brand_name) VALUES
+(1, 'Burberry'),
+(2, 'Gucci'),
+(3, 'Chloe'),
+(4, 'Jimmy Choo'),
+(5, 'Armani'),
+(6, 'Versace'),
+(7, 'Louis Vuitton'),
+(8, 'Dior'),
+(9, 'Tom Ford'),
+(10, 'Hermes');
+
+INSERT INTO temp_categories (category_id, category_name) VALUES
+(1, 'Eau de Parfum'),
+(2, 'Eau de Toilette'),
+(3, 'Cologne'),
+(4, 'Perfume Oil'),
+(5, 'Body Mist'),
+(6, 'Gift Set'),
+(7, 'Travel Spray');
+
+
+
+INSERT INTO temp_cartitems (cart_item_id, cart_id, product_id, quantity) VALUES
+(1, 1, 2, 1),
+(2, 1, 4, 2),
+(3, 2, 3, 1),
+(4, 3, 1, 1);
+
+INSERT INTO temp_orderitems (order_item_id,order_id, product_id, quantity) VALUES
+(1,1, 2, 1),
+(2,1, 4, 1),
+(3,2, 3, 1),
+(4,3, 1, 1);
+
+
+
+INSERT INTO temp_orders
+(order_id, user_id, order_date, total_amount, status, delivery_method, payment_method, delivery_address) VALUES
+(1, 1, '2025-05-30 12:00:00', 150.00, 'Processing', 'Delivery', 'Credit Card', '123 Main St, City'),
+(2, 2, '2025-05-29 15:30:00', 95.00, 'Shipped', 'Pickup', 'Cash', '456 Side Rd, Town'),
+(3, 3, '2025-05-28 09:45:00', 75.00, 'Delivered', 'Delivery', 'PayPal', '789 High St, Village');
+
+
+INSERT INTO temp_products
+(product_id, product_name, description, price, availability, brand_name, category_name)
+VALUES
+(1, 'Burberry Brit Rhythm', 'Fresh and woody scent', 75.00, true, 'Burberry', 'Eau de Parfum'),
+(2, 'Gucci Bloom', 'Elegant floral fragrance', 85.50, true, 'Gucci', 'Eau de Toilette'),
+(3, 'Chloe Eau de Parfum', 'Soft and romantic', 95.00, true, 'Chloe', 'Perfume Oil'),
+(4, 'Jimmy Choo Fever', 'Oriental spicy', 70.00, true, 'Jimmy Choo', 'Eau de Toilette'),
+(5, 'Armani Code', 'Classic and seductive', 110.00, true, 'Armani', 'Eau de Parfum'),
+(6, 'Versace Dylan Blue', 'Fresh aquatic scent', 90.00, true, 'Versace', 'Perfume Oil'),
+(7, 'Louis Vuitton Le Jour', 'Rich and warm', 120.00, true, 'Louis Vuitton', 'Eau de Parfum'),
+(8, 'Dior Sauvage', 'Strong and fresh', 105.00, true, 'Dior', 'Cologne'),
+(9, 'Tom Ford Noir', 'Dark and mysterious', 130.00, true, 'Tom Ford', 'Eau de Parfum'),
+(10, 'Hermes Terre d''Hermes', 'Earthy and woody', 100.00, true, 'Hermes', 'Gift Set');
+
+
+INSERT INTO temp_tags (tag_id, tag_name) VALUES
+(1, 'unisex'),
+(2, 'new'),
+(3, 'limited'),
+(4, 'fresh'),
+(5, 'luxury');
+
+INSERT INTO temp_bridge_product_tag (product_id, tag_id) VALUES
+(1, 1),
+(2, 3),
+(4, 2),
+(6, 4),
+(7, 5);
+
+
+
+--Checking  data in TP
+
+SELECT * FROM temp_users;
+SELECT * FROM temp_brands;
+SELECT * FROM temp_categories;
+SELECT * FROM temp_products;
+SELECT * FROM temp_cart;
+SELECT * FROM temp_cartitems;
+SELECT * FROM temp_orders;
+SELECT * FROM temp_orderitems;
+
+
+
+--Inserting data to main tables from temporary
+
+-- Users
+
+INSERT INTO Users (user_id, username, email, password)
+SELECT DISTINCT ON (user_id)
+    user_id, username, email, password
+FROM temp_users
+ORDER BY user_id, ctid DESC
+ON CONFLICT (user_id) DO UPDATE
+SET username = EXCLUDED.username,
+    email = EXCLUDED.email,
+    password = EXCLUDED.password
+WHERE Users.username IS DISTINCT FROM EXCLUDED.username
+   OR Users.email IS DISTINCT FROM EXCLUDED.email
+   OR Users.password IS DISTINCT FROM EXCLUDED.password;
+
+
+-- Brands
+INSERT INTO Brands (brand_id, brand_name)
+SELECT brand_id, brand_name FROM temp_brands
+ON CONFLICT (brand_id) DO UPDATE
+SET brand_name = EXCLUDED.brand_name
+WHERE Brands.brand_name IS DISTINCT FROM EXCLUDED.brand_name;
+
+-- Categories
+INSERT INTO Categories (category_id, category_name)
+SELECT category_id, category_name FROM temp_categories
+ON CONFLICT (category_id) DO UPDATE
+SET category_name = EXCLUDED.category_name
+WHERE Categories.category_name IS DISTINCT FROM EXCLUDED.category_name;
+
+-- Products ( JOIN ON brand_name AND category_name FOR brand_id и category_id)
+
+INSERT INTO Products (product_id, product_name, description, price, availability, brand_id, category_id)
+SELECT
+    tp.product_id,
+    tp.product_name,
+    tp.description,
+    tp.price,
+    tp.availability,
+    b.brand_id,
+    c.category_id
+FROM temp_products tp
+JOIN Brands b ON tp.brand_name = b.brand_name
+JOIN Categories c ON tp.category_name = c.category_name
+ON CONFLICT (product_id) DO UPDATE
+SET product_name = EXCLUDED.product_name,
+    description = EXCLUDED.description,
+    price = EXCLUDED.price,
+    availability = EXCLUDED.availability,
+    brand_id = EXCLUDED.brand_id,
+    category_id = EXCLUDED.category_id
+WHERE Products.product_name IS DISTINCT FROM EXCLUDED.product_name
+   OR Products.description IS DISTINCT FROM EXCLUDED.description
+   OR Products.price IS DISTINCT FROM EXCLUDED.price
+   OR Products.availability IS DISTINCT FROM EXCLUDED.availability
+   OR Products.brand_id IS DISTINCT FROM EXCLUDED.brand_id
+   OR Products.category_id IS DISTINCT FROM EXCLUDED.category_id;
+
+
+-- Cart
+INSERT INTO Cart (user_id)
+SELECT DISTINCT user_id FROM Users
+ON CONFLICT (user_id) DO NOTHING;
+
+--Adding TOTAL AMOUNT for cart
+
+--Total Price
+ALTER TABLE Cart
+ADD COLUMN total_amount NUMERIC(10,2) DEFAULT 0;
+
+UPDATE Cart c
+SET total_amount = (
+    SELECT COALESCE(SUM(ci.quantity * p.price), 0)
+    FROM CartItems ci
+    JOIN Products p ON ci.product_id = p.product_id
+    WHERE ci.cart_id = c.cart_id
+);
+
+
+
+-- CartItems
+INSERT INTO CartItems (cart_item_id, cart_id, product_id, quantity)
+SELECT DISTINCT cart_item_id, cart_id, product_id, quantity
+FROM temp_cartitems
+ON CONFLICT (cart_item_id) DO UPDATE
+SET cart_id = EXCLUDED.cart_id,
+    product_id = EXCLUDED.product_id,
+    quantity = EXCLUDED.quantity
+WHERE CartItems.cart_id IS DISTINCT FROM EXCLUDED.cart_id
+   OR CartItems.product_id IS DISTINCT FROM EXCLUDED.product_id
+   OR CartItems.quantity IS DISTINCT FROM EXCLUDED.quantity;
+
+
+-- Orders
+INSERT INTO Orders (order_id, user_id, order_date, total_amount, status, delivery_method, payment_method, delivery_address)
+SELECT  order_id, user_id, order_date, total_amount, status, delivery_method, payment_method, delivery_address FROM temp_orders
+ON CONFLICT (order_id) DO UPDATE
+SET user_id = EXCLUDED.user_id,
+    order_date = EXCLUDED.order_date,
+    total_amount = EXCLUDED.total_amount,
+    status = EXCLUDED.status,
+    delivery_method = EXCLUDED.delivery_method,
+    payment_method = EXCLUDED.payment_method,
+    delivery_address = EXCLUDED.delivery_address
+WHERE Orders.user_id IS DISTINCT FROM EXCLUDED.user_id
+   OR Orders.order_date IS DISTINCT FROM EXCLUDED.order_date
+   OR Orders.total_amount IS DISTINCT FROM EXCLUDED.total_amount
+   OR Orders.status IS DISTINCT FROM EXCLUDED.status
+   OR Orders.delivery_method IS DISTINCT FROM EXCLUDED.delivery_method
+   OR Orders.payment_method IS DISTINCT FROM EXCLUDED.payment_method
+   OR Orders.delivery_address IS DISTINCT FROM EXCLUDED.delivery_address;
+
+
+-- OrderItems
+INSERT INTO OrderItems (order_item_id, order_id, product_id, quantity)
+SELECT order_item_id, order_id, product_id, quantity FROM temp_orderitems
+ON CONFLICT (order_item_id) DO UPDATE
+SET order_id = EXCLUDED.order_id,
+    product_id = EXCLUDED.product_id,
+    quantity = EXCLUDED.quantity
+WHERE OrderItems.order_id IS DISTINCT FROM EXCLUDED.order_id
+   OR OrderItems.product_id IS DISTINCT FROM EXCLUDED.product_id
+   OR OrderItems.quantity IS DISTINCT FROM EXCLUDED.quantity
+
+
+
+--Bridge_product
+INSERT INTO Bridge_product_tag (product_id, tag_id)
+SELECT DISTINCT product_id, tag_id
+FROM temp_bridge_product_tag
+ON CONFLICT (product_id, tag_id) DO NOTHING;
+
+
+--Tags
+INSERT INTO Tags (tag_id, tag_name)
+SELECT DISTINCT ON (tag_id)
+    tag_id, tag_name
+FROM temp_tags
+ORDER BY tag_id, ctid DESC
+ON CONFLICT (tag_id) DO UPDATE
+SET tag_name = EXCLUDED.tag_name
+WHERE tags.tag_name IS DISTINCT FROM EXCLUDED.tag_name;
+
+
+
+SELECT * FROM Products;
+

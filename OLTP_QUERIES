@@ -1,0 +1,23 @@
+--3.1Category with the largest number of orders:
+SELECT c.category_name, COUNT(*) AS order_count
+FROM OrderItems oi
+JOIN Products p ON oi.product_id = p.product_id
+JOIN Categories c ON p.category_id = c.category_id
+GROUP BY c.category_name
+ORDER BY order_count DESC
+LIMIT 1;
+
+
+--3.1 The most expensive product
+SELECT b.brand_name, p.product_name, p.price
+FROM Products p
+JOIN Brands b ON p.brand_id = b.brand_id
+ORDER BY p.price DESC
+LIMIT 1;
+
+
+--3.1 Users who paid for orders using "Credit Card":
+SELECT DISTINCT u.user_id, u.username, u.email
+FROM Users u
+JOIN Orders o ON u.user_id = o.user_id
+WHERE o.payment_method = 'Credit Card';

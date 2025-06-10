@@ -1,0 +1,79 @@
+2.1--OLAP
+CREATE TABLE DimUser (
+    user_id SERIAL PRIMARY KEY,
+    username VARCHAR(100),
+    email VARCHAR(100),
+    password VARCHAR(100)
+);
+
+
+-- (SCD Type 2)
+CREATE TABLE DimProduct (
+    product_id SERIAL PRIMARY KEY,
+    title VARCHAR(100),
+    description TEXT,
+    price DECIMAL(10, 2),
+    brand VARCHAR(100),
+    category VARCHAR(100),
+    valid_from DATE,
+    valid_to DATE,
+    is_current BOOLEAN
+);
+
+
+CREATE TABLE DimDate (
+    date_id SERIAL PRIMARY KEY,
+    full_date DATE,
+    day INT,
+    month INT,
+    year INT
+);
+
+
+CREATE TABLE DimTag (
+    tag_id SERIAL PRIMARY KEY,
+    tag_name VARCHAR(100)
+);
+
+--Bridge table
+CREATE TABLE DimBridgeProductTag (
+    product_id INT,
+    tag_id INT,
+    PRIMARY KEY (product_id, tag_id),
+    FOREIGN KEY (product_id) REFERENCES DimProduct(product_id),
+    FOREIGN KEY (tag_id) REFERENCES DimTag(tag_id)
+);
+
+
+
+
+CREATE TABLE FactOrders (
+    order_id  PRIMARY KEY,
+    user_id INT,
+    product_id INT,
+    date_id INT,
+    quantity INT,
+    total_cost DECIMAL(10, 2),
+    product_count INT,
+    FOREIGN KEY (user_id) REFERENCES DimUser(user_id),
+    FOREIGN KEY (product_id) REFERENCES DimProduct(product_id),
+    FOREIGN KEY (date_id) REFERENCES DimDate(date_id)
+);
+
+
+
+
+CREATE TABLE FactCartItems (
+    cart_item_id SERIAL PRIMARY KEY,
+    cart_id INT,
+    user_id INT,
+    product_id INT,
+    date_id INT,
+    quantity INT,
+    total_cost DECIMAL(10, 2),
+	total_cart_cost DECIMAL(10, 2),
+    FOREIGN KEY (user_id) REFERENCES DimUser(user_id),
+    FOREIGN KEY (product_id) REFERENCES DimProduct(product_id),
+    FOREIGN KEY (date_id) REFERENCES DimDate(date_id)
+);
+

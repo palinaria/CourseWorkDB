@@ -1,0 +1,155 @@
+DROP TABLE IF EXISTS OrderItems ;
+DROP TABLE IF EXISTS Orders ;
+DROP TABLE IF EXISTS CartItems ;
+DROP TABLE IF EXISTS Cart ;
+DROP TABLE IF EXISTS Products ;
+DROP TABLE IF EXISTS Categories ;
+DROP TABLE IF EXISTS Brands ;
+DROP TABLE IF EXISTS Users ;
+DROP TABLE IF EXISTS TAGS ;
+DROP TABLE IF EXISTS Bridge_product_tag;
+
+
+
+--Creating main tables
+
+CREATE TABLE Users (
+    user_id     SERIAL PRIMARY KEY,
+    username    VARCHAR(50) UNIQUE NOT NULL,
+    email       VARCHAR(100) UNIQUE NOT NULL,
+    password    VARCHAR(255) NOT NULL
+);
+
+CREATE TABLE Brands (
+    brand_id    SERIAL PRIMARY KEY,
+    brand_name  VARCHAR(100) UNIQUE NOT NULL
+);
+
+CREATE TABLE Categories (
+    category_id     SERIAL PRIMARY KEY,
+    category_name   VARCHAR(100) UNIQUE NOT NULL
+);
+
+CREATE TABLE Products (
+    product_id      SERIAL PRIMARY KEY,
+    product_name    VARCHAR(100) NOT NULL,
+    description     TEXT,
+    price           DECIMAL(10,2) NOT NULL,
+    availability    BOOLEAN DEFAULT TRUE,
+    brand_id        INT REFERENCES Brands(brand_id),
+    category_id     INT REFERENCES Categories(category_id)
+);
+
+CREATE TABLE Cart (
+    cart_id     SERIAL PRIMARY KEY,
+    user_id     INT UNIQUE REFERENCES Users(user_id)
+);
+
+CREATE TABLE CartItems (
+    cart_item_id    SERIAL PRIMARY KEY,
+    cart_id         INT REFERENCES Cart(cart_id),
+    product_id      INT REFERENCES Products(product_id),
+    quantity        INT CHECK (quantity > 0)
+);
+
+CREATE TABLE Orders (
+    order_id        SERIAL PRIMARY KEY,
+    user_id         INT REFERENCES Users(user_id),
+    order_date      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    total_amount    NUMERIC(10,2),
+    status          VARCHAR(30),
+    delivery_method VARCHAR(50),
+    payment_method  VARCHAR(50),
+    delivery_address TEXT
+);
+
+CREATE TABLE OrderItems (
+    order_item_id   SERIAL PRIMARY KEY,
+    order_id        INT REFERENCES Orders(order_id),
+    product_id      INT REFERENCES Products(product_id),
+    quantity        INT CHECK (quantity > 0)
+
+);
+
+
+CREATE TABLE Tags (
+    tag_id SERIAL PRIMARY KEY,
+    tag_name VARCHAR(100) UNIQUE NOT NULL
+);
+
+
+CREATE TABLE Bridge_product_tag (
+    product_id INT NOT NULL,
+    tag_id INT NOT NULL,
+    PRIMARY KEY (product_id, tag_id)
+);
+--Creating temporary tables
+
+CREATE TEMP TABLE temp_users (
+    user_id INT,
+    username VARCHAR(50),
+    email VARCHAR(100),
+    password VARCHAR(255)
+);
+
+CREATE TEMP TABLE temp_brands (
+    brand_id INT,
+    brand_name VARCHAR(100)
+);
+
+CREATE TEMP TABLE temp_categories (
+    category_id INT,
+    category_name VARCHAR(100)
+);
+
+
+CREATE TEMP TABLE temp_products (
+    product_id INT,
+    product_name VARCHAR(100),
+    description TEXT,
+    price DECIMAL(10,2),
+    availability BOOLEAN,
+    brand_name VARCHAR(100),
+    category_name VARCHAR(100)
+);
+
+
+
+
+CREATE TEMP TABLE temp_cartitems (
+    cart_item_id INT,
+    cart_id INT ,
+    product_id INT,
+    quantity INT
+);
+
+CREATE TEMP TABLE temp_orders (
+    order_id INT,
+    user_id INT,
+    order_date TIMESTAMP,
+    total_amount NUMERIC(10,2),
+    status VARCHAR(30),
+    delivery_method VARCHAR(50),
+    payment_method VARCHAR(50),
+    delivery_address TEXT
+);
+
+CREATE TEMP TABLE temp_orderitems (
+    order_item_id INT,
+    order_id INT,
+    product_id INT,
+    quantity INT
+
+);
+
+CREATE TEMP TABLE temp_tags (
+    tag_id INT,
+    tag_name VARCHAR(100)
+);
+
+CREATE TEMP TABLE temp_bridge_product_tag (
+    product_id INT,
+    tag_id INT
+);
+
+

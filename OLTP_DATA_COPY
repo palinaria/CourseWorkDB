@@ -1,0 +1,12 @@
+--Load data from CSV files into temporary tables
+
+COPY temp_users       FROM 'C:/Users/user/Desktop/Курсовая/data/Users.csv'       WITH (FORMAT csv, HEADER true);
+COPY temp_brands      FROM 'C:/Users/user/Desktop/Курсовая/data/Brands.csv'      WITH (FORMAT csv, HEADER true);
+COPY temp_categories  FROM 'C:/Users/user/Desktop/Курсовая/data/Categories.csv'  WITH (FORMAT csv, HEADER true);
+COPY temp_products    FROM 'C:/Users/user/Desktop/Курсовая/data/Products.csv'    WITH (FORMAT csv, HEADER true);
+COPY temp_cart        FROM 'C:/Users/user/Desktop/Курсовая/data/Cart.csv'        WITH (FORMAT csv, HEADER true);
+COPY temp_cartitems   FROM 'C:/Users/user/Desktop/Курсовая/data/CartItems.csv'   WITH (FORMAT csv, HEADER true);
+COPY temp_orders      FROM 'C:/Users/user/Desktop/Курсовая/data/Orders.csv'      WITH (FORMAT csv, HEADER true);
+COPY temp_orderitems  FROM 'C:/Users/user/Desktop/Курсовая/data/OrderItems.csv'  WITH (FORMAT csv, HEADER true);
+COPY temp_tags        FROM 'C:/Users/user/Desktop/Курсовая/data/Tags.csv'        WITH (FORMAT csv, HEADER true);
+COPY temp_bridge_product_tag        FROM 'C:/Users/user/Desktop/Курсовая/data/BridgeTag.csv'        WITH (FORMAT csv, HEADER true);

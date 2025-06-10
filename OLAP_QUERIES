@@ -1,0 +1,46 @@
+--3.2
+
+
+--Users whose total order amount exceeds 100
+SELECT
+    u.user_id,
+    u.username,
+    SUM(fo.total_cost) AS total_spent
+FROM FactOrders fo
+JOIN DimUser u ON fo.user_id = u.user_id
+GROUP BY u.user_id, u.username
+HAVING SUM(fo.total_cost) > 100;
+
+
+
+
+
+--Products that have the tag "Limited"
+
+SELECT
+    dp.product_id,
+    dp.title,
+    dt.tag_name
+FROM DimProduct dp
+JOIN DimBridgeProductTag bpt ON dp.product_id = bpt.product_id
+JOIN DimTag dt ON bpt.tag_id = dt.tag_id
+WHERE dt.tag_name = 'limited' AND dp.is_current = TRUE;
+
+
+
+
+--Users who added products from the brand "Gucci" to the cart
+
+SELECT
+    du.user_id,
+    du.username,
+    dp.title AS product_title,
+    dp.brand,
+    fci.total_cost
+FROM FactCartItems fci
+JOIN DimUser du ON fci.user_id = du.user_id
+JOIN DimProduct dp ON fci.product_id = dp.product_id
+WHERE dp.brand = 'Gucci' AND dp.is_current = TRUE;
+
+
+
