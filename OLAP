@@ -62,7 +62,6 @@ CREATE TABLE FactOrders (
 
 
 
-
 CREATE TABLE FactCartItems (
     cart_item_id SERIAL PRIMARY KEY,
     cart_id INT,
@@ -71,9 +70,8 @@ CREATE TABLE FactCartItems (
     date_id INT,
     quantity INT,
     total_cost DECIMAL(10, 2),
-	total_cart_cost DECIMAL(10, 2),
+    total_cart_cost DECIMAL(10, 2),
     FOREIGN KEY (user_id) REFERENCES DimUser(user_id),
     FOREIGN KEY (product_id) REFERENCES DimProduct(product_id),
     FOREIGN KEY (date_id) REFERENCES DimDate(date_id)
 );
-

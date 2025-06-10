@@ -1,5 +1,3 @@
----2.2
-
 ALTER USER postgres WITH PASSWORD '12345';
 
 CREATE EXTENSION IF NOT EXISTS postgres_fdw;
@@ -146,66 +144,16 @@ ON CONFLICT (user_id) DO UPDATE
 --DimDate
 
 INSERT INTO DimDate (full_date, day, month, year)
-SELECT DISTINCT
-    CAST(order_date AS DATE),
-    EXTRACT(DAY FROM order_date),
-    EXTRACT(MONTH FROM order_date),
-    EXTRACT(YEAR FROM order_date)
-FROM foreign_orders
-WHERE order_date IS NOT NULL
-ON CONFLICT (full_date) DO NOTHING;
-
-
-
---FactOrders
-
-INSERT INTO FactOrders (
-    order_id,
-    user_id,
-    product_id,
-    date_id,
-    quantity,
-    total_cost,
-    product_count
-)
 SELECT
-    o.order_id,
-    o.user_id,
-    oi.product_id,
-    dd.date_id,
-    oi.quantity,
-    o.total_amount,
-    (SELECT COUNT(*)
-     FROM foreign_orderitems oi2
-     WHERE oi2.order_id = o.order_id)
-FROM foreign_orders o
-JOIN foreign_orderitems oi ON oi.order_id = o.order_id
-JOIN DimDate dd ON dd.full_date = CAST(o.order_date AS DATE)
-ON CONFLICT DO NOTHING;
+    CURRENT_DATE,
+    EXTRACT(DAY FROM CURRENT_DATE)::INT,
+    EXTRACT(MONTH FROM CURRENT_DATE)::INT,
+    EXTRACT(YEAR FROM CURRENT_DATE)::INT
+WHERE NOT EXISTS (
+    SELECT 1 FROM DimDate WHERE full_date = CURRENT_DATE
+);
 
 
---FactCartItems(TYPE2)
-INSERT INTO FactCartItems (cart_id, user_id, product_id, date_id, quantity, total_cost, total_cart_cost)
-SELECT
-    ci.cart_id,
-    c.user_id,
-    ci.product_id,
-    dd.date_id,
-    ci.quantity,
-    (ci.quantity * dp.price) AS total_cost,
-    cart_sums.total_cart_cost
-FROM foreign_cart c
-JOIN foreign_cartitems ci ON ci.cart_id = c.cart_id
-JOIN DimDate dd ON dd.full_date = CURRENT_DATE
-JOIN DimProduct dp ON dp.product_id = ci.product_id AND dp.is_current = TRUE
-JOIN (
-    SELECT
-        ci2.cart_id,
-        SUM(ci2.quantity * dp2.price) AS total_cart_cost
-    FROM foreign_cartitems ci2
-    JOIN DimProduct dp2 ON dp2.product_id = ci2.product_id AND dp2.is_current = TRUE
-    GROUP BY ci2.cart_id
-) cart_sums ON cart_sums.cart_id = ci.cart_id;
 
 --Ending of previous version(type 2)
 
@@ -263,6 +211,8 @@ ON CONFLICT (tag_id) DO UPDATE
   SET tag_name = EXCLUDED.tag_name;
 
 
+
+
 --DimBridgeProductTag
 INSERT INTO DimBridgeProductTag (product_id, tag_id)
 SELECT DISTINCT product_id, tag_id
@@ -271,4 +221,70 @@ ON CONFLICT DO NOTHING;
 
 
 
+
+--FactOrders
+
+ALTER TABLE FactOrders DROP CONSTRAINT factorders_pkey;
+ALTER TABLE FactOrders ADD COLUMN fact_order_id SERIAL PRIMARY KEY;
+
+
+INSERT INTO FactOrders (
+    order_id,
+    user_id,
+    product_id,
+    date_id,
+    quantity,
+    total_cost,
+    product_count
+)
+SELECT
+    foi.order_id,
+    fo.user_id,
+    dp.product_id,
+    dd.date_id,
+    foi.quantity,
+    fo.total_amount AS total_cost,
+    pc.product_count
+FROM foreign_orderitems foi
+JOIN foreign_orders fo ON foi.order_id = fo.order_id
+JOIN foreign_products fp ON foi.product_id = fp.product_id
+JOIN DimUser du ON du.user_id = fo.user_id
+JOIN DimProduct dp ON dp.title = fp.product_name AND dp.is_current = true
+JOIN DimDate dd ON dd.full_date = CAST(fo.order_date AS DATE)
+JOIN (
+    SELECT order_id, SUM(quantity) AS product_count
+    FROM foreign_orderitems
+    GROUP BY order_id
+) pc ON pc.order_id = foi.order_id
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM FactOrders f
+    WHERE f.order_id = foi.order_id
+      AND f.product_id = foi.product_id
+);
+
+
+
+--FactCartItems
+INSERT INTO FactCartItems (cart_id, user_id, product_id, date_id, quantity, total_cost, total_cart_cost)
+SELECT
+    ci.cart_id,
+    c.user_id,
+    ci.product_id,
+    dd.date_id,
+    ci.quantity,
+    (ci.quantity * dp.price) AS total_cost,
+    cart_sums.total_cart_cost
+FROM foreign_cart c
+JOIN foreign_cartitems ci ON ci.cart_id = c.cart_id
+JOIN DimDate dd ON dd.full_date = CURRENT_DATE
+JOIN DimProduct dp ON dp.product_id = ci.product_id AND dp.is_current = TRUE
+JOIN (
+    SELECT
+        ci2.cart_id,
+        SUM(ci2.quantity * dp2.price) AS total_cart_cost
+    FROM foreign_cartitems ci2
+    JOIN DimProduct dp2 ON dp2.product_id = ci2.product_id AND dp2.is_current = TRUE
+    GROUP BY ci2.cart_id
+) cart_sums ON cart_sums.cart_id = ci.cart_id;
 
