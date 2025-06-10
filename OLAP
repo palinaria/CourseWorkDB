@@ -23,7 +23,7 @@ CREATE TABLE DimProduct (
 
 CREATE TABLE DimDate (
     date_id SERIAL PRIMARY KEY,
-    full_date DATE,
+    full_date DATE UNIQUE,
     day INT,
     month INT,
     year INT
